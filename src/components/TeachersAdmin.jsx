@@ -151,9 +151,11 @@ const TeachersAdmin = () => {
             <h3 style={{ marginBottom: '1.25rem', fontSize: '1.3rem', fontWeight: 700, color: 'var(--accent-primary)' }}>Create Teacher Account</h3>
             <TeacherRegistrationForm
               mode="admin"
-              onSubmit={(teacherData) => {
-                dispatch(createTeacher(teacherData));
-                setShowAddModal(false);
+              onSubmit={async (teacherData) => {
+                const res = await dispatch(createTeacher(teacherData));
+                if (!res.error) {
+                  setShowAddModal(false);
+                }
               }}
               isLoading={isLoading}
               isError={isError}

@@ -22,6 +22,8 @@ const StudentsAdmin = () => {
 
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [enrollError, setEnrollError] = useState('');
+  const [enrollSuccess, setEnrollSuccess] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -57,13 +59,25 @@ const StudentsAdmin = () => {
     }
   };
 
-  const handleEnrollSubmit = (e) => {
+  const handleEnrollSubmit = async (e) => {
     e.preventDefault();
     if (selectedStudent && selectedCourseId) {
-      dispatch(enrollStudent({ courseId: selectedCourseId, studentId: selectedStudent._id }));
-      setShowEnrollModal(false);
-      setSelectedStudent(null);
-      setSelectedCourseId('');
+      setEnrollError('');
+      setEnrollSuccess('');
+      const res = await dispatch(
+        enrollStudent({ courseId: selectedCourseId, studentId: selectedStudent._id })
+      );
+      if (enrollStudent.fulfilled.match(res)) {
+        setEnrollSuccess('Student enrolled successfully!');
+        setTimeout(() => {
+          setShowEnrollModal(false);
+          setSelectedStudent(null);
+          setSelectedCourseId('');
+          setEnrollSuccess('');
+        }, 1000);
+      } else {
+        setEnrollError(res.payload || 'Failed to enroll student');
+      }
     }
   };
 
@@ -81,6 +95,8 @@ const StudentsAdmin = () => {
   const openEnroll = (student) => {
     setSelectedStudent(student);
     setSelectedCourseId('');
+    setEnrollError('');
+    setEnrollSuccess('');
     setShowEnrollModal(true);
   };
 
@@ -262,6 +278,19 @@ const StudentsAdmin = () => {
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
               Student: <strong>{selectedStudent.name}</strong> ({selectedStudent.email})
             </p>
+
+            {enrollError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#dc2626', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                {enrollError}
+              </div>
+            )}
+
+            {enrollSuccess && (
+              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#059669', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                {enrollSuccess}
+              </div>
+            )}
+
             <form onSubmit={handleEnrollSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label className="form-label">Select Target Course</label>

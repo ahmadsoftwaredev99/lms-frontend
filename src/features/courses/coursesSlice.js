@@ -101,10 +101,47 @@ export const enrollStudent = createAsyncThunk(
   'courses/enrollStudent',
   async ({ courseId, studentId }, thunkAPI) => {
     try {
-      const response = await fetch(`/api/admin/courses/${courseId}/enroll`, {
+      const response = await fetch(`/api/courses/${courseId}/enroll`, {
         method: 'POST',
         headers: getAuthHeaders(thunkAPI.getState),
         body: JSON.stringify({ studentId }),
+      });
+      const data = await response.json();
+      if (!response.ok) return thunkAPI.rejectWithValue(data.message);
+      return data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchAdminCourses = fetchCourses;
+
+export const fetchTeacherCourses = createAsyncThunk(
+  'courses/fetchTeacherCourses',
+  async (params = {}, thunkAPI) => {
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const allParam = params?.all ? '&all=true' : '';
+    try {
+      const response = await fetch(`/api/teacher/courses?page=${page}&limit=${limit}${allParam}`, {
+        headers: getAuthHeaders(thunkAPI.getState),
+      });
+      const data = await response.json();
+      if (!response.ok) return thunkAPI.rejectWithValue(data.message);
+      return data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchCourseRoster = createAsyncThunk(
+  'courses/fetchCourseRoster',
+  async (courseId, thunkAPI) => {
+    try {
+      const response = await fetch(`/api/courses/${courseId}/roster`, {
+        headers: getAuthHeaders(thunkAPI.getState),
       });
       const data = await response.json();
       if (!response.ok) return thunkAPI.rejectWithValue(data.message);
@@ -137,8 +174,13 @@ export const coursesSlice = createSlice({
   name: 'courses',
   initialState: {
     courses: [],
+    teacherCourses: [],
     studentCourses: [],
+    currentRoster: [],
+    currentRosterCourse: null,
+    rosterLoading: false,
     pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    teacherCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
     studentCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
     isLoading: false,
     isError: false,
@@ -148,6 +190,10 @@ export const coursesSlice = createSlice({
     resetCoursesState: (state) => {
       state.isError = false;
       state.message = '';
+    },
+    clearCurrentRoster: (state) => {
+      state.currentRoster = [];
+      state.currentRosterCourse = null;
     },
   },
   extraReducers: (builder) => {
@@ -171,6 +217,41 @@ export const coursesSlice = createSlice({
       })
       .addCase(fetchCourses.rejected, (state, action) => {
         state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
+      .addCase(fetchTeacherCourses.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchTeacherCourses.fulfilled, (state, action) => {
+        state.isLoading = false;
+        if (action.payload.data) {
+          state.teacherCourses = action.payload.data;
+          state.teacherCoursesPagination = {
+            total: action.payload.total,
+            page: action.payload.page,
+            totalPages: action.payload.totalPages,
+            limit: action.payload.limit,
+          };
+        } else {
+          state.teacherCourses = action.payload;
+        }
+      })
+      .addCase(fetchTeacherCourses.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
+      .addCase(fetchCourseRoster.pending, (state) => {
+        state.rosterLoading = true;
+      })
+      .addCase(fetchCourseRoster.fulfilled, (state, action) => {
+        state.rosterLoading = false;
+        state.currentRoster = action.payload.roster || [];
+        state.currentRosterCourse = action.payload.course || null;
+      })
+      .addCase(fetchCourseRoster.rejected, (state, action) => {
+        state.rosterLoading = false;
         state.isError = true;
         state.message = action.payload;
       })
@@ -211,11 +292,20 @@ export const coursesSlice = createSlice({
         if (index !== -1) state.courses[index] = action.payload;
       })
       .addCase(enrollStudent.fulfilled, (state, action) => {
-        const index = state.courses.findIndex((c) => c._id === action.payload._id);
-        if (index !== -1) state.courses[index] = action.payload;
+        const courseData = action.payload.course || action.payload;
+        if (courseData?._id) {
+          const index = state.courses.findIndex((c) => c._id === courseData._id);
+          if (index !== -1) state.courses[index] = courseData;
+
+          const teacherIndex = state.teacherCourses.findIndex((c) => c._id === courseData._id);
+          if (teacherIndex !== -1) state.teacherCourses[teacherIndex] = courseData;
+        }
+        if (action.payload.roster) {
+          state.currentRoster = action.payload.roster;
+        }
       });
   },
 });
 
-export const { resetCoursesState } = coursesSlice.actions;
+export const { resetCoursesState, clearCurrentRoster } = coursesSlice.actions;
 export default coursesSlice.reducer;

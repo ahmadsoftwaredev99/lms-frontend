@@ -45,7 +45,7 @@ export const registerTeacher = createAsyncThunk(
   'auth/registerTeacher',
   async (userData, thunkAPI) => {
     try {
-      const response = await fetch('/register/teacher', {
+      const response = await fetch('/api/auth/register/teacher', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

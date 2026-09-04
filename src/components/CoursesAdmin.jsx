@@ -7,15 +7,25 @@ import {
   deleteCourse,
   assignTeacher,
   enrollStudent,
+  fetchCourseRoster,
+  clearCurrentRoster,
 } from '../features/courses/coursesSlice';
 import { fetchTeachers } from '../features/teachers/teachersSlice';
 import { fetchStudents } from '../features/students/studentsSlice';
-import { Plus, Edit2, Trash2, UserPlus, UserCheck, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, UserPlus, UserCheck, BookOpen, Users, X, Calendar } from 'lucide-react';
 import Pagination from './Pagination';
 
 const CoursesAdmin = () => {
   const dispatch = useDispatch();
-  const { courses, pagination, isLoading, isError, message } = useSelector((state) => state.courses);
+  const {
+    courses,
+    pagination,
+    isLoading,
+    isError,
+    message,
+    currentRoster,
+    rosterLoading,
+  } = useSelector((state) => state.courses);
   const { teachers } = useSelector((state) => state.teachers);
   const { students } = useSelector((state) => state.students);
 
@@ -24,19 +34,27 @@ const CoursesAdmin = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [showRosterModal, setShowRosterModal] = useState(false);
 
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [rosterCourse, setRosterCourse] = useState(null);
 
   // Form States
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [teacherId, setTeacherId] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [enrollCourseId, setEnrollCourseId] = useState('');
+
+  // Inline feedback states for enrollment
+  const [enrollError, setEnrollError] = useState('');
+  const [enrollSuccess, setEnrollSuccess] = useState('');
+  const [isEnrolling, setIsEnrolling] = useState(false);
 
   useEffect(() => {
     dispatch(fetchCourses());
     dispatch(fetchTeachers());
-    dispatch(fetchStudents());
+    dispatch(fetchStudents({ all: true }));
   }, [dispatch]);
 
   const handleCreateSubmit = (e) => {
@@ -72,13 +90,34 @@ const CoursesAdmin = () => {
     }
   };
 
-  const handleEnrollSubmit = (e) => {
+  const handleEnrollSubmit = async (e) => {
     e.preventDefault();
-    if (selectedCourse && studentId) {
-      dispatch(enrollStudent({ courseId: selectedCourse._id, studentId }));
-      setShowEnrollModal(false);
-      setSelectedCourse(null);
+    const targetCourseId = selectedCourse?._id || enrollCourseId;
+    if (!targetCourseId || !studentId) return;
+
+    setEnrollError('');
+    setEnrollSuccess('');
+    setIsEnrolling(true);
+
+    const resultAction = await dispatch(
+      enrollStudent({ courseId: targetCourseId, studentId })
+    );
+
+    setIsEnrolling(false);
+
+    if (enrollStudent.fulfilled.match(resultAction)) {
+      setEnrollSuccess('Student enrolled successfully!');
       setStudentId('');
+      // If roster modal is currently open for this course, refresh its roster
+      if (rosterCourse && rosterCourse._id === targetCourseId) {
+        dispatch(fetchCourseRoster(targetCourseId));
+      }
+      setTimeout(() => {
+        setShowEnrollModal(false);
+        setEnrollSuccess('');
+      }, 1000);
+    } else {
+      setEnrollError(resultAction.payload || 'Failed to enroll student');
     }
   };
 
@@ -96,22 +135,51 @@ const CoursesAdmin = () => {
     setShowAssignModal(true);
   };
 
-  const openEnroll = (course) => {
+  const openEnrollForCourse = (course) => {
     setSelectedCourse(course);
+    setEnrollCourseId(course._id);
     setStudentId('');
+    setEnrollError('');
+    setEnrollSuccess('');
     setShowEnrollModal(true);
+  };
+
+  const openGlobalEnroll = () => {
+    setSelectedCourse(null);
+    setEnrollCourseId(courses[0]?._id || '');
+    setStudentId('');
+    setEnrollError('');
+    setEnrollSuccess('');
+    setShowEnrollModal(true);
+  };
+
+  const openRoster = (course) => {
+    setRosterCourse(course);
+    dispatch(fetchCourseRoster(course._id));
+    setShowRosterModal(true);
+  };
+
+  const closeRoster = () => {
+    setShowRosterModal(false);
+    setRosterCourse(null);
+    dispatch(clearCurrentRoster());
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>Courses Management</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Create, manage, assign teachers, and enroll students</p>
+          <p style={{ color: 'var(--text-muted)' }}>Create, manage, assign teachers, and enroll students into any course</p>
         </div>
-        <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => setShowAddModal(true)}>
-          <Plus size={18} /> Add New Course
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={openGlobalEnroll}>
+            <UserCheck size={18} /> Enroll Student
+          </button>
+          <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => setShowAddModal(true)}>
+            <Plus size={18} /> Add New Course
+          </button>
+        </div>
       </div>
 
       {isError && (
@@ -127,7 +195,7 @@ const CoursesAdmin = () => {
               <th>Course Title</th>
               <th>Description</th>
               <th>Assigned Teacher</th>
-              <th>Enrolled Students</th>
+              <th>Course Roster</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -155,17 +223,33 @@ const CoursesAdmin = () => {
                     )}
                   </td>
                   <td>
-                    <span className="badge badge-student">
-                      {course.enrolledStudents?.length || 0} Students
-                    </span>
+                    <button
+                      onClick={() => openRoster(course)}
+                      className="badge badge-student"
+                      style={{
+                        cursor: 'pointer',
+                        border: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.35rem 0.65rem',
+                      }}
+                      title="Click to view course roster"
+                    >
+                      <Users size={13} />
+                      {course.enrolledStudents?.length || 0} Enrolled
+                    </button>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="icon-btn" title="View Course Roster" onClick={() => openRoster(course)}>
+                        <Users size={16} color="var(--primary)" />
+                      </button>
+                      <button className="icon-btn" title="Enroll Student" onClick={() => openEnrollForCourse(course)}>
+                        <UserCheck size={16} color="var(--accent-primary)" />
+                      </button>
                       <button className="icon-btn" title="Assign Teacher" onClick={() => openAssign(course)}>
                         <UserPlus size={16} color="var(--accent-orange)" />
-                      </button>
-                      <button className="icon-btn" title="Enroll Student" onClick={() => openEnroll(course)}>
-                        <UserCheck size={16} color="var(--accent-primary)" />
                       </button>
                       <button className="icon-btn" title="Edit Course" onClick={() => openEdit(course)}>
                         <Edit2 size={16} color="#6366f1" />
@@ -340,15 +424,51 @@ const CoursesAdmin = () => {
         </div>
       )}
 
-      {/* ENROLL STUDENT MODAL */}
-      {showEnrollModal && selectedCourse && (
+      {/* ENROLL STUDENT MODAL (UNRESTRICTED FOR ADMIN) */}
+      {showEnrollModal && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
+          <div className="glass-card modal-content" style={{ maxWidth: '480px' }}>
             <h3 style={{ marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>Enroll Student</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              Course: <strong>{selectedCourse.title}</strong>
+              Admin has full unrestricted access to enroll any student into any course.
             </p>
+
+            {enrollError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#dc2626', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                {enrollError}
+              </div>
+            )}
+
+            {enrollSuccess && (
+              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#059669', padding: '0.65rem 0.9rem', borderRadius: '8px', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                {enrollSuccess}
+              </div>
+            )}
+
             <form onSubmit={handleEnrollSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label className="form-label">Course</label>
+                {selectedCourse ? (
+                  <div style={{ padding: '0.6rem 0.8rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '8px', fontWeight: 600 }}>
+                    {selectedCourse.title}
+                  </div>
+                ) : (
+                  <select
+                    className="form-input"
+                    value={enrollCourseId}
+                    onChange={(e) => setEnrollCourseId(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Select Course --</option>
+                    {courses.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.title} {c.teacherId ? `(Teacher: ${c.teacherId.name})` : '(No teacher)'}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div>
                 <label className="form-label">Select Student</label>
                 <select
@@ -365,15 +485,128 @@ const CoursesAdmin = () => {
                   ))}
                 </select>
               </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowEnrollModal(false)}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowEnrollModal(false);
+                    setSelectedCourse(null);
+                    setEnrollError('');
+                    setEnrollSuccess('');
+                  }}
+                  disabled={isEnrolling}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Enroll Student
+                <button type="submit" className="btn-primary" disabled={isEnrolling}>
+                  {isEnrolling ? 'Enrolling...' : 'Enroll Student'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* COURSE ROSTER MODAL */}
+      {showRosterModal && rosterCourse && (
+        <div className="modal-backdrop">
+          <div className="glass-card modal-content" style={{ maxWidth: '750px', width: '95%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Course Roster</h3>
+                <div style={{ fontWeight: 600, color: 'var(--text-main)', marginTop: '0.25rem' }}>
+                  {rosterCourse.title}
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Assigned Teacher: {rosterCourse.teacherId ? rosterCourse.teacherId.name : 'Unassigned'}
+                </div>
+              </div>
+              <button
+                className="icon-btn"
+                onClick={closeRoster}
+                style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {rosterLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                Loading course roster...
+              </div>
+            ) : currentRoster.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'var(--bg-main)', borderRadius: '8px', marginBottom: '1rem' }}>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No students enrolled in this course yet.</p>
+                <button
+                  className="btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  onClick={() => openEnrollForCourse(rosterCourse)}
+                >
+                  <UserCheck size={16} /> Enroll First Student
+                </button>
+              </div>
+            ) : (
+              <div style={{ maxHeight: '420px', overflowY: 'auto', marginBottom: '1rem' }}>
+                <table className="custom-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Email</th>
+                      <th>Enrolled By</th>
+                      <th>Enrolled On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentRoster.map((entry) => (
+                      <tr key={entry._id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                            {entry.student?.name || 'Unknown Student'}
+                          </div>
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                          {entry.student?.email || 'N/A'}
+                        </td>
+                        <td>
+                          {entry.enrolledByRole === 'admin' ? (
+                            <span className="badge badge-admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              Admin: {entry.enrolledBy?.name || 'Admin'}
+                            </span>
+                          ) : (
+                            <span className="badge badge-teacher" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                              Teacher: {entry.enrolledBy?.name || 'Assigned Teacher'}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                          {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : 'Existing'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+              <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                Total Enrolled: <strong>{currentRoster.length}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => openEnrollForCourse(rosterCourse)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <UserCheck size={16} /> Enroll Student
+                </button>
+                <button className="btn-primary" onClick={closeRoster}>
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

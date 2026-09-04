@@ -13,8 +13,11 @@ export const fetchStudents = createAsyncThunk(
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
     const limit = params?.limit || 10;
+    const role = thunkAPI.getState().auth?.user?.role;
+    const endpoint = role === 'teacher' ? '/api/teacher/students' : '/api/admin/students';
+    const query = role === 'teacher' ? '' : `?page=${page}&limit=${limit}`;
     try {
-      const response = await fetch(`/api/admin/students?page=${page}&limit=${limit}`, {
+      const response = await fetch(`${endpoint}${query}`, {
         headers: getAuthHeaders(thunkAPI.getState),
       });
       const data = await response.json();

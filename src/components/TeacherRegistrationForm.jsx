@@ -135,6 +135,7 @@ const TeacherRegistrationForm = ({
               onChange={handleChange}
               style={{ paddingLeft: '2.5rem' }}
               required={mode === 'public'}
+              minLength={mode === 'public' ? 6 : undefined}
             />
           </div>
         </div>
