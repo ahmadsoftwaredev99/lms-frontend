@@ -74,7 +74,9 @@ body {
    ======================================================== */
 .nexus-app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: var(--surface);
 }
 
@@ -83,6 +85,9 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
   background: var(--surface);
 }
 
@@ -238,12 +243,26 @@ body {
   background: var(--sidebar);
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
   position: sticky;
   top: 0;
+  flex-shrink: 0;
   z-index: 50;
   padding: 1.5rem 1rem;
   box-shadow: 4px 0 24px 0 rgba(15, 23, 42, 0.06);
+}
+
+.sidebar-container::-webkit-scrollbar,
+.sidebar-glass::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-container::-webkit-scrollbar-thumb,
+.sidebar-glass::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .sidebar-header {
@@ -634,15 +653,27 @@ textarea.form-input:focus {
 @media (max-width: 960px) {
   .nexus-app-layout {
     flex-direction: column;
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .sidebar-container,
   .sidebar-glass {
     width: 100%;
     min-width: 100%;
+    height: auto;
+    max-height: none;
     min-height: auto;
     position: relative;
     padding: 1rem;
+    overflow-y: visible;
+  }
+
+  .nexus-main-viewport {
+    height: auto;
+    max-height: none;
+    overflow-y: visible;
   }
 
   .sidebar-menu,

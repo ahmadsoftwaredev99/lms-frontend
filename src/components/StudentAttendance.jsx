@@ -11,7 +11,7 @@ const StudentAttendance = () => {
   );
 
   useEffect(() => {
-    dispatch(fetchStudentAttendance({ page: 1, limit: 10 }));
+    dispatch(fetchStudentAttendance({ page: 1, limit: 6 }));
   }, [dispatch]);
 
   const overall = studentAttendance?.overall || {
@@ -192,8 +192,8 @@ const StudentAttendance = () => {
             currentPage={studentPagination?.page || 1}
             totalPages={studentPagination?.totalPages || 1}
             total={studentPagination?.total || 0}
-            limit={studentPagination?.limit || 10}
-            onPageChange={(page) => dispatch(fetchStudentAttendance({ page, limit: 10 }))}
+            limit={studentPagination?.limit || 6}
+            onPageChange={(page) => dispatch(fetchStudentAttendance({ page, limit: 6 }))}
           />
         </>
       )}

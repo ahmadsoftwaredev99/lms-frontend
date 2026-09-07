@@ -6,7 +6,7 @@ import {
   deleteMaterial,
 } from '../features/material/materialSlice';
 import { fetchTeacherCourses } from '../features/attendance/attendanceSlice';
-import { FolderDown, Plus, Trash2, ExternalLink, Download, Book, FileText, File, AlertCircle, Link2, UploadCloud } from 'lucide-react';
+import { FolderDown, Plus, Trash2, ExternalLink, Download, Book, FileText, File, AlertCircle, Link2, UploadCloud, X } from 'lucide-react';
 import Pagination from './Pagination';
 
 const TeacherMaterials = () => {
@@ -25,8 +25,8 @@ const TeacherMaterials = () => {
   const [fileInput, setFileInput] = useState(null);
 
   useEffect(() => {
-    dispatch(fetchTeacherMaterials({ page: 1, limit: 10 }));
-    dispatch(fetchTeacherCourses());
+    dispatch(fetchTeacherMaterials({ page: 1, limit: 6 }));
+    dispatch(fetchTeacherCourses({ all: true }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -45,9 +45,10 @@ const TeacherMaterials = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
+    let res;
     if (materialMode === 'file') {
       if (fileInput) {
         const data = new FormData();
@@ -56,9 +57,9 @@ const TeacherMaterials = () => {
         data.append('type', formData.type);
         data.append('materialType', 'file');
         data.append('file', fileInput);
-        dispatch(uploadMaterial(data));
+        res = await dispatch(uploadMaterial(data));
       } else if (formData.fileUrl) {
-        dispatch(
+        res = await dispatch(
           uploadMaterial({
             courseId: formData.courseId,
             title: formData.title,
@@ -70,7 +71,7 @@ const TeacherMaterials = () => {
       }
     } else {
       // Link mode
-      dispatch(
+      res = await dispatch(
         uploadMaterial({
           courseId: formData.courseId,
           title: formData.title,
@@ -79,6 +80,10 @@ const TeacherMaterials = () => {
           fileUrl: formData.fileUrl,
         })
       );
+    }
+
+    if (res && !res.error) {
+      dispatch(fetchTeacherMaterials({ page: 1, limit: 6 }));
     }
 
     setShowAddModal(false);
@@ -91,9 +96,10 @@ const TeacherMaterials = () => {
     });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this study material?')) {
-      dispatch(deleteMaterial(id));
+      await dispatch(deleteMaterial(id));
+      dispatch(fetchTeacherMaterials({ page: pagination?.page || 1, limit: 6 }));
     }
   };
 
@@ -222,8 +228,8 @@ const TeacherMaterials = () => {
             currentPage={pagination?.page || 1}
             totalPages={pagination?.totalPages || 1}
             total={pagination?.total || 0}
-            limit={pagination?.limit || 10}
-            onPageChange={(page) => dispatch(fetchTeacherMaterials({ page, limit: 10 }))}
+            limit={pagination?.limit || 6}
+            onPageChange={(page) => dispatch(fetchTeacherMaterials({ page, limit: 6 }))}
           />
         </>
       )}
@@ -232,7 +238,27 @@ const TeacherMaterials = () => {
       {showAddModal && (
         <div className="modal-backdrop">
           <div className="glass-card modal-content" style={{ maxWidth: '540px', width: '90%' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent-primary)' }}>Add Study Material</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, color: 'var(--accent-primary)' }}>Add Study Material</h2>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
             {/* TAB TOGGLE: UPLOAD FILE VS ADD LINK */}
             <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '10px', padding: '0.25rem', marginBottom: '1.25rem' }}>

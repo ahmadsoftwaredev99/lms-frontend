@@ -19,6 +19,7 @@ import {
   Send,
   AlertCircle,
   FileCheck,
+  X,
 } from 'lucide-react';
 import Pagination from './Pagination';
 
@@ -35,7 +36,7 @@ const StudentAssignments = () => {
   const [reopenFeedback, setReopenFeedback] = useState({});
 
   useEffect(() => {
-    dispatch(fetchStudentAssignments({ page: 1, limit: 10 }));
+    dispatch(fetchStudentAssignments({ page: 1, limit: 6 }));
   }, [dispatch]);
 
   const filteredAssignments = (assignments || []).filter((item) => {
@@ -339,17 +340,37 @@ const StudentAssignments = () => {
         currentPage={pagination?.page || 1}
         totalPages={pagination?.totalPages || 1}
         total={pagination?.total || 0}
-        limit={pagination?.limit || 10}
-        onPageChange={(page) => dispatch(fetchStudentAssignments({ page, limit: 10 }))}
+        limit={pagination?.limit || 6}
+        onPageChange={(page) => dispatch(fetchStudentAssignments({ page, limit: 6 }))}
       />
 
       {/* UPLOAD / EDIT SUBMISSION MODAL */}
       {selectedAssignment && (
         <div className="modal-backdrop">
           <div className="glass-card modal-content" style={{ maxWidth: '540px', width: '90%' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>
-              {selectedAssignment.submission ? 'Edit Submission' : 'Submit Coursework'}
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, color: 'var(--accent-primary)' }}>
+                {selectedAssignment.submission ? 'Edit Submission' : 'Submit Coursework'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedAssignment(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
               {selectedAssignment.title} ({selectedAssignment.courseId?.title})
             </p>

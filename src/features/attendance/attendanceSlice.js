@@ -12,7 +12,7 @@ export const fetchTeacherCourses = createAsyncThunk(
   'attendance/fetchTeacherCourses',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/teacher/courses?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -31,11 +31,11 @@ export const fetchCourseAttendance = createAsyncThunk(
   async (arg, thunkAPI) => {
     let courseId = arg;
     let page = 1;
-    let limit = 10;
+    let limit = 6;
     if (typeof arg === 'object') {
       courseId = arg.courseId;
       page = arg.page || 1;
-      limit = arg.limit || 10;
+      limit = arg.limit || 6;
     }
     try {
       const response = await fetch(`/api/teacher/attendance/course/${courseId}?page=${page}&limit=${limit}`, {
@@ -113,7 +113,7 @@ export const fetchStudentAttendance = createAsyncThunk(
   'attendance/fetchStudentAttendance',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/student/attendance?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -134,8 +134,8 @@ export const attendanceSlice = createSlice({
     records: [],
     studentStats: [],
     studentAttendance: null,
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
-    studentPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
+    studentPagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     message: '',

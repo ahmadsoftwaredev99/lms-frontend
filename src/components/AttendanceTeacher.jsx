@@ -30,7 +30,7 @@ const AttendanceTeacher = () => {
   const [bulkStatuses, setBulkStatuses] = useState({});
 
   useEffect(() => {
-    dispatch(fetchTeacherCourses());
+    dispatch(fetchTeacherCourses({ all: true }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ const AttendanceTeacher = () => {
 
   useEffect(() => {
     if (selectedCourseId) {
-      dispatch(fetchCourseAttendance(selectedCourseId));
+      dispatch(fetchCourseAttendance({ courseId: selectedCourseId, page: 1, limit: 6 }));
     }
   }, [selectedCourseId, dispatch]);
 
@@ -345,9 +345,9 @@ const AttendanceTeacher = () => {
                 currentPage={pagination?.page || 1}
                 totalPages={pagination?.totalPages || 1}
                 total={pagination?.total || 0}
-                limit={pagination?.limit || 10}
+                limit={pagination?.limit || 6}
                 onPageChange={(page) =>
-                  dispatch(fetchCourseAttendance({ courseId: selectedCourseId, page, limit: 10 }))
+                  dispatch(fetchCourseAttendance({ courseId: selectedCourseId, page, limit: 6 }))
                 }
               />
             </div>

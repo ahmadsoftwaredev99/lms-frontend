@@ -14,7 +14,7 @@ const StudentMaterial = () => {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('all');
 
   useEffect(() => {
-    dispatch(fetchStudentMaterials({ page: 1, limit: 10 }));
+    dispatch(fetchStudentMaterials({ page: 1, limit: 6 }));
   }, [dispatch]);
 
   const filteredMaterials = (studentMaterials || []).filter((item) => {
@@ -176,8 +176,8 @@ const StudentMaterial = () => {
             currentPage={studentPagination?.page || 1}
             totalPages={studentPagination?.totalPages || 1}
             total={studentPagination?.total || 0}
-            limit={studentPagination?.limit || 10}
-            onPageChange={(page) => dispatch(fetchStudentMaterials({ page, limit: 10 }))}
+            limit={studentPagination?.limit || 6}
+            onPageChange={(page) => dispatch(fetchStudentMaterials({ page, limit: 6 }))}
           />
         </>
       )}

@@ -8,7 +8,7 @@ import {
   clearSubmissions,
 } from '../features/assignments/assignmentsSlice';
 import { fetchTeacherCourses } from '../features/attendance/attendanceSlice';
-import { Plus, FileText, Eye, Clock, Download, Unlock } from 'lucide-react';
+import { Plus, FileText, Eye, Clock, Download, Unlock, X } from 'lucide-react';
 import Pagination from './Pagination';
 
 const AssignmentsTeacher = () => {
@@ -32,8 +32,8 @@ const AssignmentsTeacher = () => {
   });
 
   useEffect(() => {
-    dispatch(fetchTeacherAssignments());
-    dispatch(fetchTeacherCourses());
+    dispatch(fetchTeacherAssignments({ page: 1, limit: 6 }));
+    dispatch(fetchTeacherCourses({ all: true }));
   }, [dispatch]);
 
   useEffect(() => {
@@ -46,9 +46,9 @@ const AssignmentsTeacher = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    dispatch(
+    const res = await dispatch(
       createAssignment({
         courseId: formData.courseId,
         title: formData.title,
@@ -58,20 +58,23 @@ const AssignmentsTeacher = () => {
         materialFiles: formData.materialFile ? [formData.materialFile] : [],
       })
     );
-    setShowAddModal(false);
-    setFormData({
-      courseId: teacherCourses[0]?._id || '',
-      title: '',
-      description: '',
-      type: 'assignment',
-      dueDate: '',
-      materialFile: '',
-    });
+    if (!res.error) {
+      dispatch(fetchTeacherAssignments({ page: 1, limit: 6 }));
+      setShowAddModal(false);
+      setFormData({
+        courseId: teacherCourses[0]?._id || '',
+        title: '',
+        description: '',
+        type: 'assignment',
+        dueDate: '',
+        materialFile: '',
+      });
+    }
   };
 
   const openSubmissions = (assignment) => {
     setSelectedAssignment(assignment);
-    dispatch(fetchSubmissions(assignment._id));
+    dispatch(fetchSubmissions({ assignmentId: assignment._id, page: 1, limit: 6 }));
     setShowSubmissionsModal(true);
   };
 
@@ -97,47 +100,61 @@ const AssignmentsTeacher = () => {
         </div>
       )}
 
-      {/* ASSIGNMENTS LIST GRID */}
-      <div className="grid-cols-3">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {assignments.length === 0 ? (
-          <div className="glass-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2.5rem' }}>
-            <p style={{ color: 'var(--text-muted)' }}>No assignments or quizzes created yet. Click "Create Assignment / Quiz" to add one.</p>
+          <div className="glass-card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            No coursework or quizzes created yet.
           </div>
         ) : (
-          assignments.map((asgn) => {
-            const isQuiz = asgn.type === 'quiz';
-            const isPastDue = new Date() > new Date(asgn.dueDate);
+          assignments.map((assignment) => {
+            const isPastDue = new Date(assignment.dueDate) < new Date();
             return (
-              <div key={asgn._id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div
+                key={assignment._id}
+                className="glass-card"
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1.25rem 1.5rem',
+                  borderLeft: `4px solid ${assignment.type === 'quiz' ? 'var(--accent-orange)' : 'var(--accent-primary)'}`,
+                }}
+              >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                    <span className={`badge ${isQuiz ? 'badge-teacher' : 'badge-student'}`}>
-                      {asgn.type}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-main)' }}>{assignment.title}</h3>
+                    <span className={`badge ${assignment.type === 'quiz' ? 'badge-teacher' : 'badge-student'}`}>
+                      {assignment.type.toUpperCase()}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: isPastDue ? 'var(--danger)' : 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
-                      <Clock size={12} /> {new Date(asgn.dueDate).toLocaleDateString()}
+                    <span className="badge" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                      {assignment.courseId?.title || 'Course'}
                     </span>
                   </div>
-
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-main)' }}>
-                    {asgn.title}
-                  </h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem', minHeight: '40px' }}>
-                    {asgn.description}
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                    {assignment.description}
                   </p>
-
-                  <div style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginBottom: '1rem', fontWeight: 600 }}>
-                    Course: <strong>{asgn.courseId?.title || 'N/A'}</strong>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Clock size={13} color={isPastDue ? '#ef4444' : 'var(--text-muted)'} />
+                      Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                    </span>
+                    {assignment.materialFiles && assignment.materialFiles.length > 0 && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--accent-primary)' }}>
+                        <FileText size={13} /> {assignment.materialFiles.length} Attachment(s)
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <button
-                  className="btn-secondary"
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                  onClick={() => openSubmissions(asgn)}
-                >
-                  <Eye size={16} /> View Submissions
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                    onClick={() => openSubmissions(assignment)}
+                  >
+                    <Eye size={15} /> Submissions
+                  </button>
+                </div>
               </div>
             );
           })
@@ -148,15 +165,35 @@ const AssignmentsTeacher = () => {
         currentPage={pagination?.page || 1}
         totalPages={pagination?.totalPages || 1}
         total={pagination?.total || 0}
-        limit={pagination?.limit || 10}
-        onPageChange={(page) => dispatch(fetchTeacherAssignments({ page, limit: 10 }))}
+        limit={pagination?.limit || 6}
+        onPageChange={(page) => dispatch(fetchTeacherAssignments({ page, limit: 6 }))}
       />
 
       {/* CREATE ASSIGNMENT / QUIZ MODAL */}
       {showAddModal && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
-            <h3 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Create Assignment or Quiz</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '540px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Create Assignment or Quiz</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label className="form-label">Course</label>
@@ -263,13 +300,25 @@ const AssignmentsTeacher = () => {
                 </p>
               </div>
               <button
-                className="btn-secondary"
+                type="button"
                 onClick={() => {
                   setShowSubmissionsModal(false);
                   dispatch(clearSubmissions());
                 }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
               >
-                Close
+                <X size={20} />
               </button>
             </div>
 
@@ -353,9 +402,9 @@ const AssignmentsTeacher = () => {
               currentPage={submissionsPagination?.page || 1}
               totalPages={submissionsPagination?.totalPages || 1}
               total={submissionsPagination?.total || 0}
-              limit={submissionsPagination?.limit || 10}
+              limit={submissionsPagination?.limit || 6}
               onPageChange={(page) =>
-                dispatch(fetchSubmissions({ assignmentId: selectedAssignment._id, page, limit: 10 }))
+                dispatch(fetchSubmissions({ assignmentId: selectedAssignment._id, page, limit: 6 }))
               }
             />
           </div>

@@ -13,7 +13,7 @@ const StudentCourses = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    dispatch(fetchStudentCourses({ page: 1, limit: 10 }));
+    dispatch(fetchStudentCourses({ page: 1, limit: 6 }));
   }, [dispatch]);
 
   const filteredCourses = (studentCourses || []).filter(
@@ -124,8 +124,8 @@ const StudentCourses = () => {
         currentPage={studentPagination?.page || 1}
         totalPages={studentPagination?.totalPages || 1}
         total={studentPagination?.total || 0}
-        limit={studentPagination?.limit || 10}
-        onPageChange={(page) => dispatch(fetchStudentCourses({ page, limit: 10 }))}
+        limit={studentPagination?.limit || 6}
+        onPageChange={(page) => dispatch(fetchStudentCourses({ page, limit: 6 }))}
       />
     </div>
   );

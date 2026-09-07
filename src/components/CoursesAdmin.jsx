@@ -7,117 +7,197 @@ import {
   deleteCourse,
   assignTeacher,
   enrollStudent,
-  fetchCourseRoster,
-  clearCurrentRoster,
+  unenrollStudent,
 } from '../features/courses/coursesSlice';
 import { fetchTeachers } from '../features/teachers/teachersSlice';
 import { fetchStudents } from '../features/students/studentsSlice';
-import { Plus, Edit2, Trash2, UserPlus, UserCheck, BookOpen, Users, X, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, UserPlus, UserCheck, BookOpen, Users, X, Calendar, UserMinus, CheckSquare, Square } from 'lucide-react';
 import Pagination from './Pagination';
 
 const CoursesAdmin = () => {
   const dispatch = useDispatch();
   const {
     courses,
+    allCourses,
     pagination,
     isLoading,
     isError,
     message,
-    currentRoster,
-    rosterLoading,
   } = useSelector((state) => state.courses);
-  const { teachers } = useSelector((state) => state.teachers);
-  const { students } = useSelector((state) => state.students);
+  const { teachers, allTeachers } = useSelector((state) => state.teachers);
+  const { students, allStudents } = useSelector((state) => state.students);
+
+  // Unpaginated full lists for dropdowns & selectors
+  const teacherList = allTeachers && allTeachers.length > 0 ? allTeachers : teachers;
+  const studentList = allStudents && allStudents.length > 0 ? allStudents : students;
+  const courseList = allCourses && allCourses.length > 0 ? allCourses : courses;
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
-  const [showRosterModal, setShowRosterModal] = useState(false);
 
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [rosterCourse, setRosterCourse] = useState(null);
 
   // Form States
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [teacherId, setTeacherId] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [enrollCourseId, setEnrollCourseId] = useState('');
 
-  // Inline feedback states for enrollment
+  // Multi-select for enrollment & unenrollment
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [selectedEnrolledIds, setSelectedEnrolledIds] = useState([]);
+
+  // Inline feedback states
   const [enrollError, setEnrollError] = useState('');
   const [enrollSuccess, setEnrollSuccess] = useState('');
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [unenrollTarget, setUnenrollTarget] = useState(null);
+  const [isUnenrolling, setIsUnenrolling] = useState(false);
 
   useEffect(() => {
-    dispatch(fetchCourses());
-    dispatch(fetchTeachers());
+    dispatch(fetchCourses({ page: 1, limit: 6 }));
+    dispatch(fetchCourses({ all: true }));
+    dispatch(fetchTeachers({ all: true }));
     dispatch(fetchStudents({ all: true }));
   }, [dispatch]);
 
-  const handleCreateSubmit = (e) => {
-    e.preventDefault();
-    dispatch(createCourse({ title, description, teacherId: teacherId || null }));
-    setShowAddModal(false);
-    setTitle('');
-    setDescription('');
-    setTeacherId('');
+  const activeEnrollCourse = selectedCourse || courseList.find((c) => c._id === enrollCourseId) || courses.find((c) => c._id === enrollCourseId);
+  const currentlyEnrolledIds = (activeEnrollCourse?.enrolledStudents || []).map((s) => (s._id || s).toString());
+  const availableStudents = studentList.filter((s) => !currentlyEnrolledIds.includes(s._id.toString()));
+
+  const handleConfirmUnenroll = async () => {
+    if (!unenrollTarget || !unenrollTarget.studentIds?.length) return;
+    setIsUnenrolling(true);
+    setEnrollError('');
+    setEnrollSuccess('');
+    const res = await dispatch(
+      unenrollStudent({ courseId: unenrollTarget.courseId, studentIds: unenrollTarget.studentIds })
+    );
+    setIsUnenrolling(false);
+    if (!res.error) {
+      if (selectedCourse) {
+        setSelectedCourse((prev) => ({
+          ...prev,
+          enrolledStudents: (prev.enrolledStudents || []).filter(
+            (s) => !unenrollTarget.studentIds.includes((s._id || s).toString())
+          ),
+        }));
+      }
+      setSelectedEnrolledIds([]);
+      dispatch(fetchCourses({ page: pagination?.page || 1, limit: 6 }));
+      dispatch(fetchCourses({ all: true }));
+      setUnenrollTarget(null);
+    } else {
+      setEnrollError(res.payload || 'Failed to unenroll student(s)');
+      setUnenrollTarget(null);
+    }
   };
 
-  const handleEditSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    const res = await dispatch(createCourse({ title, description, teacherId: teacherId || null }));
+    if (!res.error) {
+      dispatch(fetchCourses({ page: 1, limit: 6 }));
+      dispatch(fetchCourses({ all: true }));
+      setShowAddModal(false);
+      setTitle('');
+      setDescription('');
+      setTeacherId('');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (selectedCourse) {
-      dispatch(
+      const res = await dispatch(
         updateCourse({
           id: selectedCourse._id,
           courseData: { title, description, teacherId: teacherId || null },
         })
       );
-      setShowEditModal(false);
-      setSelectedCourse(null);
+      if (!res.error) {
+        dispatch(fetchCourses({ page: pagination?.page || 1, limit: 6 }));
+        dispatch(fetchCourses({ all: true }));
+        setShowEditModal(false);
+        setSelectedCourse(null);
+      }
     }
   };
 
-  const handleAssignSubmit = (e) => {
+  const handleAssignSubmit = async (e) => {
     e.preventDefault();
     if (selectedCourse && teacherId) {
-      dispatch(assignTeacher({ courseId: selectedCourse._id, teacherId }));
-      setShowAssignModal(false);
-      setSelectedCourse(null);
-      setTeacherId('');
+      const res = await dispatch(assignTeacher({ courseId: selectedCourse._id, teacherId }));
+      if (!res.error) {
+        dispatch(fetchCourses({ page: pagination?.page || 1, limit: 6 }));
+        dispatch(fetchCourses({ all: true }));
+        setShowAssignModal(false);
+        setSelectedCourse(null);
+        setTeacherId('');
+      }
     }
   };
 
   const handleEnrollSubmit = async (e) => {
     e.preventDefault();
     const targetCourseId = selectedCourse?._id || enrollCourseId;
-    if (!targetCourseId || !studentId) return;
+    if (!targetCourseId || selectedStudentIds.length === 0) return;
 
     setEnrollError('');
     setEnrollSuccess('');
     setIsEnrolling(true);
 
     const resultAction = await dispatch(
-      enrollStudent({ courseId: targetCourseId, studentId })
+      enrollStudent({ courseId: targetCourseId, studentIds: selectedStudentIds })
     );
 
     setIsEnrolling(false);
 
     if (enrollStudent.fulfilled.match(resultAction)) {
-      setEnrollSuccess('Student enrolled successfully!');
-      setStudentId('');
-      // If roster modal is currently open for this course, refresh its roster
-      if (rosterCourse && rosterCourse._id === targetCourseId) {
-        dispatch(fetchCourseRoster(targetCourseId));
-      }
-      setTimeout(() => {
-        setShowEnrollModal(false);
-        setEnrollSuccess('');
-      }, 1000);
+      setSelectedStudentIds([]);
+      setSelectedEnrolledIds([]);
+      setShowEnrollModal(false);
+      dispatch(fetchCourses({ page: pagination?.page || 1, limit: 6 }));
+      dispatch(fetchCourses({ all: true }));
     } else {
-      setEnrollError(resultAction.payload || 'Failed to enroll student');
+      setEnrollError(resultAction.payload || 'Failed to enroll students');
+    }
+  };
+
+  const toggleSelectAllAvailable = () => {
+    if (selectedStudentIds.length === availableStudents.length) {
+      setSelectedStudentIds([]);
+    } else {
+      setSelectedStudentIds(availableStudents.map((s) => s._id));
+    }
+  };
+
+  const toggleSelectStudent = (id) => {
+    if (selectedStudentIds.includes(id)) {
+      setSelectedStudentIds(selectedStudentIds.filter((sId) => sId !== id));
+    } else {
+      setSelectedStudentIds([...selectedStudentIds, id]);
+    }
+  };
+
+  const toggleSelectAllEnrolled = (enrolledStudents) => {
+    const allIds = enrolledStudents.map((s) => (s._id || s).toString());
+    if (selectedEnrolledIds.length === allIds.length) {
+      setSelectedEnrolledIds([]);
+    } else {
+      setSelectedEnrolledIds(allIds);
+    }
+  };
+
+  const toggleSelectEnrolled = (id) => {
+    const strId = id.toString();
+    if (selectedEnrolledIds.includes(strId)) {
+      setSelectedEnrolledIds(selectedEnrolledIds.filter((sId) => sId !== strId));
+    } else {
+      setSelectedEnrolledIds([...selectedEnrolledIds, strId]);
     }
   };
 
@@ -138,7 +218,8 @@ const CoursesAdmin = () => {
   const openEnrollForCourse = (course) => {
     setSelectedCourse(course);
     setEnrollCourseId(course._id);
-    setStudentId('');
+    setSelectedStudentIds([]);
+    setSelectedEnrolledIds([]);
     setEnrollError('');
     setEnrollSuccess('');
     setShowEnrollModal(true);
@@ -146,23 +227,12 @@ const CoursesAdmin = () => {
 
   const openGlobalEnroll = () => {
     setSelectedCourse(null);
-    setEnrollCourseId(courses[0]?._id || '');
-    setStudentId('');
+    setEnrollCourseId(courseList[0]?._id || courses[0]?._id || '');
+    setSelectedStudentIds([]);
+    setSelectedEnrolledIds([]);
     setEnrollError('');
     setEnrollSuccess('');
     setShowEnrollModal(true);
-  };
-
-  const openRoster = (course) => {
-    setRosterCourse(course);
-    dispatch(fetchCourseRoster(course._id));
-    setShowRosterModal(true);
-  };
-
-  const closeRoster = () => {
-    setShowRosterModal(false);
-    setRosterCourse(null);
-    dispatch(clearCurrentRoster());
   };
 
   return (
@@ -195,7 +265,7 @@ const CoursesAdmin = () => {
               <th>Course Title</th>
               <th>Description</th>
               <th>Assigned Teacher</th>
-              <th>Course Roster</th>
+              <th>Enrolled Students</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -223,28 +293,21 @@ const CoursesAdmin = () => {
                     )}
                   </td>
                   <td>
-                    <button
-                      onClick={() => openRoster(course)}
+                    <span
                       className="badge badge-student"
                       style={{
-                        cursor: 'pointer',
-                        border: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '0.35rem',
                         padding: '0.35rem 0.65rem',
                       }}
-                      title="Click to view course roster"
                     >
                       <Users size={13} />
                       {course.enrolledStudents?.length || 0} Enrolled
-                    </button>
+                    </span>
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="icon-btn" title="View Course Roster" onClick={() => openRoster(course)}>
-                        <Users size={16} color="var(--primary)" />
-                      </button>
                       <button className="icon-btn" title="Enroll Student" onClick={() => openEnrollForCourse(course)}>
                         <UserCheck size={16} color="var(--accent-primary)" />
                       </button>
@@ -254,7 +317,15 @@ const CoursesAdmin = () => {
                       <button className="icon-btn" title="Edit Course" onClick={() => openEdit(course)}>
                         <Edit2 size={16} color="#6366f1" />
                       </button>
-                      <button className="icon-btn" title="Delete Course" onClick={() => dispatch(deleteCourse(course._id))}>
+                      <button
+                        className="icon-btn"
+                        title="Delete Course"
+                        onClick={async () => {
+                          await dispatch(deleteCourse(course._id));
+                          dispatch(fetchCourses({ page: pagination?.page || 1, limit: 6 }));
+                          dispatch(fetchCourses({ all: true }));
+                        }}
+                      >
                         <Trash2 size={16} color="#ef4444" />
                       </button>
                     </div>
@@ -270,15 +341,35 @@ const CoursesAdmin = () => {
         currentPage={pagination?.page || 1}
         totalPages={pagination?.totalPages || 1}
         total={pagination?.total || 0}
-        limit={pagination?.limit || 10}
-        onPageChange={(page) => dispatch(fetchCourses({ page, limit: 10 }))}
+        limit={6}
+        onPageChange={(page) => dispatch(fetchCourses({ page, limit: 6 }))}
       />
 
       {/* CREATE COURSE MODAL */}
       {showAddModal && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
-            <h3 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Create New Course</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '520px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Create New Course</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label className="form-label">Course Title</label>
@@ -310,7 +401,7 @@ const CoursesAdmin = () => {
                   onChange={(e) => setTeacherId(e.target.value)}
                 >
                   <option value="">-- None --</option>
-                  {teachers.map((t) => (
+                  {teacherList.map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.name} ({t.email})
                     </option>
@@ -333,8 +424,28 @@ const CoursesAdmin = () => {
       {/* EDIT COURSE MODAL */}
       {showEditModal && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
-            <h3 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Edit Course</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '520px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Edit Course</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label className="form-label">Course Title</label>
@@ -366,7 +477,7 @@ const CoursesAdmin = () => {
                   onChange={(e) => setTeacherId(e.target.value)}
                 >
                   <option value="">-- None --</option>
-                  {teachers.map((t) => (
+                  {teacherList.map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.name} ({t.email})
                     </option>
@@ -389,8 +500,28 @@ const CoursesAdmin = () => {
       {/* ASSIGN TEACHER MODAL */}
       {showAssignModal && selectedCourse && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
-            <h3 style={{ marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>Assign Teacher</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '480px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Assign Teacher</h3>
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
               Course: <strong>{selectedCourse.title}</strong>
             </p>
@@ -404,7 +535,7 @@ const CoursesAdmin = () => {
                   required
                 >
                   <option value="">-- Select Teacher --</option>
-                  {teachers.map((t) => (
+                  {teacherList.map((t) => (
                     <option key={t._id} value={t._id}>
                       {t.name} ({t.email})
                     </option>
@@ -424,13 +555,40 @@ const CoursesAdmin = () => {
         </div>
       )}
 
-      {/* ENROLL STUDENT MODAL (UNRESTRICTED FOR ADMIN) */}
+      {/* ENROLL STUDENT MODAL (MULTI-SELECT CHECKBOXES) */}
       {showEnrollModal && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content" style={{ maxWidth: '480px' }}>
-            <h3 style={{ marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>Enroll Student</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '540px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Enroll Student</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEnrollModal(false);
+                  setSelectedCourse(null);
+                  setSelectedStudentIds([]);
+                  setSelectedEnrolledIds([]);
+                  setEnrollError('');
+                  setEnrollSuccess('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              Admin has full unrestricted access to enroll any student into any course.
+              Admin has full unrestricted access to enroll students into any course.
             </p>
 
             {enrollError && (
@@ -447,7 +605,7 @@ const CoursesAdmin = () => {
 
             <form onSubmit={handleEnrollSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label className="form-label">Course</label>
+                <label className="form-label">Target Course</label>
                 {selectedCourse ? (
                   <div style={{ padding: '0.6rem 0.8rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '8px', fontWeight: 600 }}>
                     {selectedCourse.title}
@@ -456,11 +614,15 @@ const CoursesAdmin = () => {
                   <select
                     className="form-input"
                     value={enrollCourseId}
-                    onChange={(e) => setEnrollCourseId(e.target.value)}
+                    onChange={(e) => {
+                      setEnrollCourseId(e.target.value);
+                      setSelectedStudentIds([]);
+                      setSelectedEnrolledIds([]);
+                    }}
                     required
                   >
                     <option value="">-- Select Course --</option>
-                    {courses.map((c) => (
+                    {courseList.map((c) => (
                       <option key={c._id} value={c._id}>
                         {c.title} {c.teacherId ? `(Teacher: ${c.teacherId.name})` : '(No teacher)'}
                       </option>
@@ -470,29 +632,91 @@ const CoursesAdmin = () => {
               </div>
 
               <div>
-                <label className="form-label">Select Student</label>
-                <select
-                  className="form-input"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  required
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <label className="form-label" style={{ margin: 0 }}>
+                    Select Students ({selectedStudentIds.length} selected)
+                  </label>
+                  {availableStudents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllAvailable}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      {selectedStudentIds.length === availableStudents.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    padding: '0.5rem',
+                    background: 'var(--bg-main)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.4rem',
+                  }}
                 >
-                  <option value="">-- Select Student --</option>
-                  {students.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name} ({s.email})
-                    </option>
-                  ))}
-                </select>
+                  {availableStudents.length === 0 ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      All registered students are already enrolled in this course.
+                    </div>
+                  ) : (
+                    availableStudents.map((s) => {
+                      const isChecked = selectedStudentIds.includes(s._id);
+                      return (
+                        <label
+                          key={s._id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.5rem 0.65rem',
+                            borderRadius: '6px',
+                            background: isChecked ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s ease',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelectStudent(s._id)}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)' }}>{s.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.email}</div>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={() => {
                     setShowEnrollModal(false);
                     setSelectedCourse(null);
+                    setSelectedStudentIds([]);
+                    setSelectedEnrolledIds([]);
                     setEnrollError('');
                     setEnrollSuccess('');
                   }}
@@ -500,112 +724,181 @@ const CoursesAdmin = () => {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={isEnrolling}>
-                  {isEnrolling ? 'Enrolling...' : 'Enroll Student'}
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={isEnrolling || selectedStudentIds.length === 0}
+                >
+                  {isEnrolling ? 'Enrolling...' : `Enroll Selected (${selectedStudentIds.length})`}
                 </button>
               </div>
             </form>
+
+            {/* Currently Enrolled Students in this Course with Multi-Select Bulk Unenroll */}
+            {activeEnrollCourse && activeEnrollCourse.enrolledStudents && activeEnrollCourse.enrolledStudents.length > 0 && (
+              <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
+                    Currently Enrolled Students ({activeEnrollCourse.enrolledStudents.length})
+                  </h4>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectAllEnrolled(activeEnrollCourse.enrolledStudents)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-primary)',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {selectedEnrolledIds.length === activeEnrollCourse.enrolledStudents.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    {selectedEnrolledIds.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{
+                          color: '#ef4444',
+                          borderColor: 'rgba(239, 68, 68, 0.4)',
+                          padding: '0.2rem 0.5rem',
+                          fontSize: '0.78rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                        onClick={() => {
+                          const names = selectedEnrolledIds.map((id) => {
+                            const found = activeEnrollCourse.enrolledStudents.find((s) => (s._id || s).toString() === id);
+                            return typeof found === 'object' && found.name ? found.name : 'Student';
+                          });
+                          setUnenrollTarget({
+                            courseId: activeEnrollCourse._id,
+                            courseTitle: activeEnrollCourse.title,
+                            studentIds: selectedEnrolledIds,
+                            studentNames: names.join(', '),
+                          });
+                        }}
+                      >
+                        <UserMinus size={13} /> Unenroll Selected ({selectedEnrolledIds.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {activeEnrollCourse.enrolledStudents.map((s) => {
+                    const studentObj = typeof s === 'object' ? s : studentList.find((st) => st._id === s) || { _id: s, name: 'Student', email: '' };
+                    const isChecked = selectedEnrolledIds.includes(studentObj._id.toString());
+                    return (
+                      <div
+                        key={studentObj._id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.45rem 0.65rem',
+                          background: isChecked ? 'rgba(239, 68, 68, 0.06)' : 'var(--bg-main)',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-color)',
+                        }}
+                      >
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', cursor: 'pointer', flex: 1, minWidth: 0 }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelectEnrolled(studentObj._id)}
+                            style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#ef4444' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{studentObj.name}</div>
+                            {studentObj.email && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{studentObj.email}</div>}
+                          </div>
+                        </label>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{
+                            color: '#ef4444',
+                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                            padding: '0.2rem 0.45rem',
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                          }}
+                          onClick={() =>
+                            setUnenrollTarget({
+                              studentIds: [studentObj._id],
+                              studentNames: studentObj.name,
+                              courseId: activeEnrollCourse._id,
+                              courseTitle: activeEnrollCourse.title,
+                            })
+                          }
+                        >
+                          <UserMinus size={12} /> Unenroll
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* COURSE ROSTER MODAL */}
-      {showRosterModal && rosterCourse && (
-        <div className="modal-backdrop">
-          <div className="glass-card modal-content" style={{ maxWidth: '750px', width: '95%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <div>
-                <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Course Roster</h3>
-                <div style={{ fontWeight: 600, color: 'var(--text-main)', marginTop: '0.25rem' }}>
-                  {rosterCourse.title}
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Assigned Teacher: {rosterCourse.teacherId ? rosterCourse.teacherId.name : 'Unassigned'}
-                </div>
-              </div>
+      {/* UNENROLL CONFIRMATION MODAL */}
+      {unenrollTarget && (
+        <div className="modal-backdrop" style={{ zIndex: 1200 }}>
+          <div className="glass-card modal-content" style={{ maxWidth: '440px', width: '90%', textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.25rem' }}>
               <button
-                className="icon-btn"
-                onClick={closeRoster}
-                style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
+                type="button"
+                onClick={() => setUnenrollTarget(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
               >
                 <X size={20} />
               </button>
             </div>
-
-            {rosterLoading ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                Loading course roster...
-              </div>
-            ) : currentRoster.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'var(--bg-main)', borderRadius: '8px', marginBottom: '1rem' }}>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No students enrolled in this course yet.</p>
-                <button
-                  className="btn-primary"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                  onClick={() => openEnrollForCourse(rosterCourse)}
-                >
-                  <UserCheck size={16} /> Enroll First Student
-                </button>
-              </div>
-            ) : (
-              <div style={{ maxHeight: '420px', overflowY: 'auto', marginBottom: '1rem' }}>
-                <table className="custom-table" style={{ width: '100%' }}>
-                  <thead>
-                    <tr>
-                      <th>Student Name</th>
-                      <th>Email</th>
-                      <th>Enrolled By</th>
-                      <th>Enrolled On</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentRoster.map((entry) => (
-                      <tr key={entry._id}>
-                        <td>
-                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>
-                            {entry.student?.name || 'Unknown Student'}
-                          </div>
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                          {entry.student?.email || 'N/A'}
-                        </td>
-                        <td>
-                          {entry.enrolledByRole === 'admin' ? (
-                            <span className="badge badge-admin" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                              Admin: {entry.enrolledBy?.name || 'Admin'}
-                            </span>
-                          ) : (
-                            <span className="badge badge-teacher" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                              Teacher: {entry.enrolledBy?.name || 'Assigned Teacher'}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : 'Existing'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-              <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                Total Enrolled: <strong>{currentRoster.length}</strong>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="btn-secondary"
-                  onClick={() => openEnrollForCourse(rosterCourse)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                  <UserCheck size={16} /> Enroll Student
-                </button>
-                <button className="btn-primary" onClick={closeRoster}>
-                  Done
-                </button>
-              </div>
+            <h3 style={{ color: '#ef4444', marginBottom: '0.75rem', fontSize: '1.25rem', fontWeight: 700 }}>
+              Confirm Unenrollment
+            </h3>
+            <p style={{ color: 'var(--text-main)', marginBottom: '1.25rem' }}>
+              Are you sure you want to unenroll <strong>{unenrollTarget.studentNames}</strong> from{' '}
+              <strong>{unenrollTarget.courseTitle}</strong>?
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setUnenrollTarget(null)}
+                disabled={isUnenrolling}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: '#dc2626' }}
+                onClick={handleConfirmUnenroll}
+                disabled={isUnenrolling}
+              >
+                {isUnenrolling ? 'Unenrolling...' : 'Confirm Unenroll'}
+              </button>
             </div>
           </div>
         </div>

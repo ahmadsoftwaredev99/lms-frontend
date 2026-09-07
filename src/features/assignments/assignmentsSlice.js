@@ -12,7 +12,7 @@ export const fetchTeacherAssignments = createAsyncThunk(
   'assignments/fetchTeacherAssignments',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/teacher/assignments?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -49,11 +49,11 @@ export const fetchSubmissions = createAsyncThunk(
   async (arg, thunkAPI) => {
     let assignmentId = arg;
     let page = 1;
-    let limit = 10;
+    let limit = 6;
     if (typeof arg === 'object') {
       assignmentId = arg.assignmentId;
       page = arg.page || 1;
-      limit = arg.limit || 10;
+      limit = arg.limit || 6;
     }
     try {
       const response = await fetch(`/api/teacher/assignments/${assignmentId}/submissions?page=${page}&limit=${limit}`, {
@@ -90,8 +90,8 @@ export const assignmentsSlice = createSlice({
   initialState: {
     assignments: [],
     submissions: [],
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
-    submissionsPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
+    submissionsPagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     message: '',
@@ -103,7 +103,7 @@ export const assignmentsSlice = createSlice({
     },
     clearSubmissions: (state) => {
       state.submissions = [];
-      state.submissionsPagination = { total: 0, page: 1, totalPages: 1, limit: 10 };
+      state.submissionsPagination = { total: 0, page: 1, totalPages: 1, limit: 6 };
     },
   },
   extraReducers: (builder) => {

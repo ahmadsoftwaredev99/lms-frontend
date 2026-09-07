@@ -15,7 +15,7 @@ export const fetchStudentAssignments = createAsyncThunk(
   'studentAssignments/fetchStudentAssignments',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/student/assignments?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -137,7 +137,7 @@ export const studentAssignmentsSlice = createSlice({
   name: 'studentAssignments',
   initialState: {
     assignments: [],
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     isSuccess: false,

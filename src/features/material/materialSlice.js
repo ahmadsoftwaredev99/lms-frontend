@@ -15,7 +15,7 @@ export const fetchTeacherMaterials = createAsyncThunk(
   'material/fetchTeacherMaterials',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/teacher/materials?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -69,7 +69,7 @@ export const fetchStudentMaterials = createAsyncThunk(
   'material/fetchStudentMaterials',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/student/materials?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -88,8 +88,8 @@ export const materialSlice = createSlice({
   initialState: {
     materials: [],
     studentMaterials: [],
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
-    studentPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
+    studentPagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     message: '',

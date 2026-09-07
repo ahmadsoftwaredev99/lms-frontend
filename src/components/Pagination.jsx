@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const Pagination = ({ currentPage = 1, totalPages = 1, onPageChange, total = 0, limit = 10 }) => {
+const Pagination = ({ currentPage = 1, totalPages = 1, onPageChange, total = 0, limit = 6 }) => {
   if (totalPages <= 1 && total <= limit) return null;
 
   const startEntry = (currentPage - 1) * limit + 1;

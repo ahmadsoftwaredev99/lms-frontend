@@ -12,17 +12,17 @@ export const fetchStudents = createAsyncThunk(
   'students/fetchStudents',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     const role = thunkAPI.getState().auth?.user?.role;
     const endpoint = role === 'teacher' ? '/api/teacher/students' : '/api/admin/students';
-    const query = role === 'teacher' ? '' : `?page=${page}&limit=${limit}`;
+    const query = role === 'teacher' ? '' : (params?.all ? '?all=true' : `?page=${page}&limit=${limit}`);
     try {
       const response = await fetch(`${endpoint}${query}`, {
         headers: getAuthHeaders(thunkAPI.getState),
       });
       const data = await response.json();
       if (!response.ok) return thunkAPI.rejectWithValue(data.message);
-      return data;
+      return { ...data, isAll: !!params?.all };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.message);
     }
@@ -86,7 +86,8 @@ export const studentsSlice = createSlice({
   name: 'students',
   initialState: {
     students: [],
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    allStudents: [],
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     message: '',
@@ -104,6 +105,10 @@ export const studentsSlice = createSlice({
       })
       .addCase(fetchStudents.fulfilled, (state, action) => {
         state.isLoading = false;
+        if (action.payload.isAll) {
+          state.allStudents = action.payload.data || action.payload;
+          return;
+        }
         if (action.payload.data) {
           state.students = action.payload.data;
           state.pagination = {

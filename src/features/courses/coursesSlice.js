@@ -12,14 +12,15 @@ export const fetchCourses = createAsyncThunk(
   'courses/fetchCourses',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
+    const allQuery = params?.all ? '?all=true' : `?page=${page}&limit=${limit}`;
     try {
-      const response = await fetch(`/api/admin/courses?page=${page}&limit=${limit}`, {
+      const response = await fetch(`/api/admin/courses${allQuery}`, {
         headers: getAuthHeaders(thunkAPI.getState),
       });
       const data = await response.json();
       if (!response.ok) return thunkAPI.rejectWithValue(data.message);
-      return data;
+      return { ...data, isAll: !!params?.all };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.message);
     }
@@ -99,12 +100,13 @@ export const assignTeacher = createAsyncThunk(
 
 export const enrollStudent = createAsyncThunk(
   'courses/enrollStudent',
-  async ({ courseId, studentId }, thunkAPI) => {
+  async ({ courseId, studentId, studentIds }, thunkAPI) => {
     try {
+      const body = studentIds ? { studentIds } : { studentId };
       const response = await fetch(`/api/courses/${courseId}/enroll`, {
         method: 'POST',
         headers: getAuthHeaders(thunkAPI.getState),
-        body: JSON.stringify({ studentId }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) return thunkAPI.rejectWithValue(data.message);
@@ -121,7 +123,7 @@ export const fetchTeacherCourses = createAsyncThunk(
   'courses/fetchTeacherCourses',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     const allParam = params?.all ? '&all=true' : '';
     try {
       const response = await fetch(`/api/teacher/courses?page=${page}&limit=${limit}${allParam}`, {
@@ -156,7 +158,7 @@ export const fetchStudentCourses = createAsyncThunk(
   'courses/fetchStudentCourses',
   async (params = {}, thunkAPI) => {
     const page = params?.page || 1;
-    const limit = params?.limit || 10;
+    const limit = params?.limit || 6;
     try {
       const response = await fetch(`/api/student/courses?page=${page}&limit=${limit}`, {
         headers: getAuthHeaders(thunkAPI.getState),
@@ -170,18 +172,45 @@ export const fetchStudentCourses = createAsyncThunk(
   }
 );
 
+export const unenrollStudent = createAsyncThunk(
+  'courses/unenrollStudent',
+  async ({ courseId, studentId, studentIds }, thunkAPI) => {
+    try {
+      let response;
+      if (studentIds && studentIds.length > 0) {
+        response = await fetch(`/api/courses/${courseId}/unenroll`, {
+          method: 'POST',
+          headers: getAuthHeaders(thunkAPI.getState),
+          body: JSON.stringify({ studentIds }),
+        });
+      } else {
+        response = await fetch(`/api/courses/${courseId}/enroll/${studentId}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders(thunkAPI.getState),
+        });
+      }
+      const data = await response.json();
+      if (!response.ok) return thunkAPI.rejectWithValue(data.message);
+      return data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.message);
+    }
+  }
+);
+
 export const coursesSlice = createSlice({
   name: 'courses',
   initialState: {
     courses: [],
+    allCourses: [],
     teacherCourses: [],
     studentCourses: [],
     currentRoster: [],
     currentRosterCourse: null,
     rosterLoading: false,
-    pagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
-    teacherCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
-    studentCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 10 },
+    pagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
+    teacherCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
+    studentCoursesPagination: { total: 0, page: 1, totalPages: 1, limit: 6 },
     isLoading: false,
     isError: false,
     message: '',
@@ -203,6 +232,10 @@ export const coursesSlice = createSlice({
       })
       .addCase(fetchCourses.fulfilled, (state, action) => {
         state.isLoading = false;
+        if (action.payload.isAll) {
+          state.allCourses = action.payload.data || action.payload;
+          return;
+        }
         if (action.payload.data) {
           state.courses = action.payload.data;
           state.pagination = {
@@ -302,6 +335,37 @@ export const coursesSlice = createSlice({
         }
         if (action.payload.roster) {
           state.currentRoster = action.payload.roster;
+        }
+      })
+      .addCase(unenrollStudent.fulfilled, (state, action) => {
+        const courseData = action.payload.course;
+        const removedIds = action.payload.studentIds || (action.payload.studentId ? [action.payload.studentId] : []);
+        if (courseData?._id) {
+          const index = state.courses.findIndex((c) => c._id === courseData._id);
+          if (index !== -1) state.courses[index] = courseData;
+
+          const teacherIndex = state.teacherCourses.findIndex((c) => c._id === courseData._id);
+          if (teacherIndex !== -1) state.teacherCourses[teacherIndex] = courseData;
+        } else if (action.payload.courseId && removedIds.length > 0) {
+          const cIndex = state.courses.findIndex((c) => c._id === action.payload.courseId);
+          if (cIndex !== -1 && state.courses[cIndex].enrolledStudents) {
+            state.courses[cIndex].enrolledStudents = state.courses[cIndex].enrolledStudents.filter(
+              (s) => !removedIds.includes((s._id || s).toString())
+            );
+          }
+          const tIndex = state.teacherCourses.findIndex((c) => c._id === action.payload.courseId);
+          if (tIndex !== -1 && state.teacherCourses[tIndex].enrolledStudents) {
+            state.teacherCourses[tIndex].enrolledStudents = state.teacherCourses[tIndex].enrolledStudents.filter(
+              (s) => !removedIds.includes((s._id || s).toString())
+            );
+          }
+        }
+        if (action.payload.roster) {
+          state.currentRoster = action.payload.roster;
+        } else if (removedIds.length > 0) {
+          state.currentRoster = state.currentRoster.filter(
+            (r) => !removedIds.includes((r.student?._id || r.student)?.toString())
+          );
         }
       });
   },

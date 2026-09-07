@@ -6,7 +6,7 @@ import {
   updateTeacher,
   deleteTeacher,
 } from '../features/teachers/teachersSlice';
-import { Plus, Edit2, Trash2, Mail, Phone } from 'lucide-react';
+import { Plus, Edit2, Trash2, Mail, Phone, X } from 'lucide-react';
 import Pagination from './Pagination';
 import TeacherRegistrationForm from './TeacherRegistrationForm';
 
@@ -26,17 +26,17 @@ const TeachersAdmin = () => {
   });
 
   useEffect(() => {
-    dispatch(fetchTeachers());
+    dispatch(fetchTeachers({ page: 1, limit: 6 }));
   }, [dispatch]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (selectedTeacher) {
-      dispatch(
+      const res = await dispatch(
         updateTeacher({
           id: selectedTeacher._id,
           teacherData: {
@@ -46,8 +46,11 @@ const TeachersAdmin = () => {
           },
         })
       );
-      setShowEditModal(false);
-      setSelectedTeacher(null);
+      if (!res.error) {
+        setShowEditModal(false);
+        setSelectedTeacher(null);
+        dispatch(fetchTeachers({ page: pagination?.page || 1, limit: 6 }));
+      }
     }
   };
 
@@ -124,7 +127,10 @@ const TeachersAdmin = () => {
                       <button className="icon-btn" title="Edit Teacher" onClick={() => openEdit(teacher)}>
                         <Edit2 size={16} color="#6366f1" />
                       </button>
-                      <button className="icon-btn" title="Delete Teacher" onClick={() => dispatch(deleteTeacher(teacher._id))}>
+                      <button className="icon-btn" title="Delete Teacher" onClick={async () => {
+                        await dispatch(deleteTeacher(teacher._id));
+                        dispatch(fetchTeachers({ page: pagination?.page || 1, limit: 6 }));
+                      }}>
                         <Trash2 size={16} color="#ef4444" />
                       </button>
                     </div>
@@ -140,21 +146,42 @@ const TeachersAdmin = () => {
         currentPage={pagination?.page || 1}
         totalPages={pagination?.totalPages || 1}
         total={pagination?.total || 0}
-        limit={pagination?.limit || 10}
-        onPageChange={(page) => dispatch(fetchTeachers({ page, limit: 10 }))}
+        limit={pagination?.limit || 6}
+        onPageChange={(page) => dispatch(fetchTeachers({ page, limit: 6 }))}
       />
 
       {/* CREATE TEACHER MODAL (REUSES SHARED TEACHER REGISTRATION FORM) */}
       {showAddModal && (
         <div className="modal-backdrop">
           <div className="glass-card modal-content" style={{ maxWidth: '520px', width: '90%' }}>
-            <h3 style={{ marginBottom: '1.25rem', fontSize: '1.3rem', fontWeight: 700, color: 'var(--accent-primary)' }}>Create Teacher Account</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, color: 'var(--accent-primary)' }}>Create Teacher Account</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <TeacherRegistrationForm
               mode="admin"
               onSubmit={async (teacherData) => {
                 const res = await dispatch(createTeacher(teacherData));
                 if (!res.error) {
                   setShowAddModal(false);
+                  dispatch(fetchTeachers({ page: 1, limit: 6 }));
                 }
               }}
               isLoading={isLoading}
@@ -169,8 +196,28 @@ const TeachersAdmin = () => {
       {/* EDIT TEACHER MODAL */}
       {showEditModal && selectedTeacher && (
         <div className="modal-backdrop">
-          <div className="glass-card modal-content">
-            <h3 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Edit Teacher Account</h3>
+          <div className="glass-card modal-content" style={{ maxWidth: '520px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--accent-primary)' }}>Edit Teacher Account</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '0.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                }}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
             <form onSubmit={handleEditSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label className="form-label">Full Name</label>
