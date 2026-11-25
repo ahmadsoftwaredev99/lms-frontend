@@ -17,7 +17,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
           <GraduationCap size={24} color="#A78BFA" />
         </div>
         <div>
-          <div className="sidebar-brand-title">Nexus LMS</div>
+          <div className="sidebar-brand-title"> LMS</div>
           <div className="sidebar-brand-subtitle">Admin Portal</div>
         </div>
       </div>
